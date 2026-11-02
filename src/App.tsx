@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { HeaderNav } from './components/HeaderNav';
-import { ChanhDienStage } from './components/ChanhDienStage';
+import { ClassroomQuizStage } from './components/ClassroomQuizStage';
 import { StreamerDeck } from './components/StreamerDeck';
 import {
   StreamConfig,
@@ -701,7 +701,8 @@ export default function App() {
         {demoButton}
         {/* Stage is laid out at 430px wide; zoom it to fill the 1080x1920 capture */}
         <div className="w-[430px] flex flex-col justify-center" style={{ zoom: stageZoom }}>
-          <ChanhDienStage
+          <ClassroomQuizStage
+            comments={comments}
             onSpotlightStart={readPendingThanks}
             spotlightRequests={spotlightRequests}
             likeProgress={likeProgress}
@@ -738,7 +739,8 @@ export default function App() {
             {/* Left: 9:16 Vertical TikTok Live Stage */}
             <div className="lg:col-span-5 flex justify-center">
               <div className="w-full max-w-[430px]">
-                <ChanhDienStage
+                <ClassroomQuizStage
+                  comments={comments}
                   onSpotlightStart={readPendingThanks}
                   spotlightRequests={spotlightRequests}
                   likeProgress={likeProgress}
@@ -774,7 +776,8 @@ export default function App() {
         ) : config.viewMode === 'stage_only' ? (
           <div className="flex-1 flex items-center justify-center py-2">
             <div className="w-full max-w-[430px]">
-              <ChanhDienStage
+              <ClassroomQuizStage
+                comments={comments}
                 onSpotlightStart={readPendingThanks}
                 spotlightRequests={spotlightRequests}
                 likeProgress={likeProgress}

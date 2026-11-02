@@ -113,55 +113,11 @@ const Occupant: React.FC<{
 // on a dark wooden base with gold carving and scrolled feet. Seen slightly from above, like the hall.
 const Cushion: React.FC<{ x: number; y: number; w: number }> = ({ x, y, w }) => (
   <div className="absolute -translate-x-1/2 -translate-y-[62%]" style={{ left: `${x}%`, top: `${y}%`, width: `${w}%`, zIndex: Math.round(y) - 1 }}>
-    <svg viewBox="0 0 200 90" className="w-full h-auto drop-shadow-[0_4px_5px_rgba(0,0,0,0.6)]" aria-hidden="true">
-      <defs>
-        <linearGradient id="velvet" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#c8202a" />
-          <stop offset="0.6" stopColor="#9c0f19" />
-          <stop offset="1" stopColor="#6d0911" />
-        </linearGradient>
-        <linearGradient id="velvetSide" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#8f0d16" />
-          <stop offset="1" stopColor="#58060c" />
-        </linearGradient>
-        <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#fbe6a2" />
-          <stop offset="0.5" stopColor="#d9a441" />
-          <stop offset="1" stopColor="#8a5a14" />
-        </linearGradient>
-        <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#3b1d10" />
-          <stop offset="1" stopColor="#1e0d06" />
-        </linearGradient>
-      </defs>
-      {/* wooden base with gold rim and carving */}
-      <path d="M14 62 H186 L184 80 H16 Z" fill="url(#wood)" />
-      <rect x="12" y="59" width="176" height="4" rx="1.5" fill="url(#gold)" />
-      <path d="M70 72 q8 -7 16 0 q6 -6 14 -2 q8 -4 14 2 q8 -7 16 0" fill="none" stroke="url(#gold)" strokeWidth="1.6" />
-      <path d="M100 64 l-5 7 h10 z" fill="url(#gold)" />
-      <path d="M16 63 v19 q0 4 6 4 h6 q-4 -6 -2 -12 q-4 -4 -2 -11 z" fill="url(#gold)" />
-      <path d="M184 63 v19 q0 4 -6 4 h-6 q4 -6 2 -12 q4 -4 2 -11 z" fill="url(#gold)" />
-      {/* velvet cushion: front side, then top */}
-      <path d="M10 30 H190 Q194 30 194 36 V54 Q194 60 188 60 H12 Q6 60 6 54 V36 Q6 30 10 30 Z" fill="url(#velvetSide)" />
-      <path d="M22 6 H178 Q190 6 192 18 L194 32 Q194 38 186 38 H14 Q6 38 6 32 L8 18 Q10 6 22 6 Z" fill="url(#velvet)" />
-      {/* gold border and corner scrolls on the top */}
-      <path d="M24 11 H176 Q184 11 185 18 L187 30 Q187 33 183 33 H17 Q13 33 13 30 L15 18 Q16 11 24 11 Z" fill="none" stroke="url(#gold)" strokeWidth="1.3" />
-      {[
-        'M20 14 q5 -1 6 3 q-3 0 -3 3',
-        'M180 14 q-5 -1 -6 3 q3 0 3 3',
-        'M17 30 q6 1 7 -3 q-4 0 -3 -3',
-        'M183 30 q-6 1 -7 -3 q4 0 3 -3',
-      ].map((d) => (
-        <path key={d} d={d} fill="none" stroke="url(#gold)" strokeWidth="1.4" strokeLinecap="round" />
-      ))}
-      {/* lotus in the middle of the top */}
-      <g transform="translate(100 22)">
-        <path d="M0 6 C-10 5 -18 0 -20 -4 C-12 -4 -5 0 0 6 Z" fill="url(#gold)" />
-        <path d="M0 6 C10 5 18 0 20 -4 C12 -4 5 0 0 6 Z" fill="url(#gold)" />
-        <path d="M0 6 C-7 2 -10 -5 -9 -10 C-4 -6 -1 0 0 6 Z" fill="url(#gold)" />
-        <path d="M0 6 C7 2 10 -5 9 -10 C4 -6 1 0 0 6 Z" fill="url(#gold)" />
-        <path d="M0 6 C-4 0 -4 -8 0 -13 C4 -8 4 0 0 6 Z" fill="url(#gold)" />
-      </g>
+    <svg viewBox="0 0 200 90" className="w-full h-auto drop-shadow-[0_4px_5px_rgba(0,0,0,0.35)]" aria-hidden="true">
+      <path d="M32 40h14v44H32zm122 0h14v44h-14z" fill="#72513a" />
+      <path d="M15 19h170l10 28H5z" fill="#c8945e" stroke="#855c3d" strokeWidth="5" />
+      <path d="M15 47h170v10H15z" fill="#936541" />
+      <path d="M65 26h42v13H65z" fill="#f5e6bd" /><path d="M86 26v13" stroke="#bfa67e" />
     </svg>
   </div>
 );
@@ -246,7 +202,6 @@ export const OfferingArea: React.FC<{
     <div className="absolute inset-0 pointer-events-none">
       {layer !== 'labels' && (
         <>
-          <BurnerGlow on={burnerLit ?? Boolean(offering)} />
           {SMALL_MATS.map((m, i) => (
             <Cushion key={`mat-${i}`} x={m.x} y={m.y} w={9} />
           ))}

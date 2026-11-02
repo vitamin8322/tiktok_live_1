@@ -23,7 +23,7 @@ const IDLE_BLESSING_MS = 90 * 1000; // voice quiet this long -> blessing + share
 const WELCOME_CHECK_MS = 6 * 1000;
 const MAX_WAITING_JOINERS = 30;
 const SEAT_AFTER_JOIN_MS = 10 * 1000;
-const DEFAULT_CHANNEL_NAME = 'Tâm Tịnh Tâm An'; // until the owner saves their own in the dashboard
+const DEFAULT_CHANNEL_NAME = 'Lớp Học Vui Vẻ'; // until the owner saves their own in the dashboard
 const SPOTLIGHT_COINS = 1; // any gift for now (small channel); raise when gifts get frequent
 const POINTS_PER_COIN = 10; // merit board: a 1-coin rose = 10 comments
 
@@ -31,6 +31,7 @@ const RAIN_MS = 60 * 1000;
 // Only the live stage page (Link source in LIVE Studio) makes sound by default; the dashboard stays silent so audio never doubles
 const pageParams = new URLSearchParams(window.location.search);
 const IS_STAGE_PAGE = pageParams.get('view') === 'stage' || pageParams.get('obs') === 'true';
+const IS_DEMO = pageParams.get('demo') === '1';
 
 const ROBE_COLORS = [
   '#38bdf8',
@@ -49,8 +50,8 @@ const ROBE_COLORS = [
 export default function App() {
   const [config, setConfig] = useState<StreamConfig>({
     channelName: DEFAULT_CHANNEL_NAME,
-    liveTitle: 'TÂM TỊNH TÂM AN',
-    subTitle: 'Gõ "adidaphat" để vào lễ Phật',
+    liveTitle: 'LỚP HỌC VUI VẺ',
+    subTitle: 'Gõ "lop hoc" để tham gia lớp',
     isConnected: true,
     autoTts: IS_STAGE_PAGE,
     voiceGender: 'female',
@@ -333,7 +334,7 @@ export default function App() {
 
   // Add Comment & Handle "adidaphat" Entry
   const handleAddComment = (username: string, commentText: string, avatarUrl = '') => {
-    const cleanUser = username.trim() || 'Phật tử';
+    const cleanUser = username.trim() || 'Học viên';
     noteInteractor(cleanUser);
     const now = Date.now();
     // Accepts "adidaphat", "A Di Đà Phật", "adi da phat 🙏", "Nam mô a di đà phật"...
@@ -343,7 +344,7 @@ export default function App() {
       .replace(/[đĐ]/g, 'd')
       .toLowerCase()
       .replace(/[^a-z]/g, '')
-      .includes('adidaphat');
+      .match(/adidaphat|lophoc/) !== null;
 
     const newComment: CommentEvent = {
       id: `c-${now}`,
@@ -507,7 +508,7 @@ export default function App() {
       eventSource.addEventListener('chat', (e) => {
         try {
           const data = JSON.parse(e.data);
-          const name = data.nickname || data.username || 'Phật tử';
+          const name = data.nickname || data.username || 'Học viên';
           handlersRef.current.handleAddComment(name, data.comment || '', data.avatar || '');
         } catch (err) {
           console.error('SSE chat parse error', err);
@@ -683,10 +684,21 @@ export default function App() {
     setConfig((prev) => ({ ...prev, bgmEnabled: !prev.bgmEnabled }));
   };
 
+  const demoButton = IS_DEMO && (
+    <button
+      type="button"
+      onClick={() => handleTriggerGift('dang_hoa_sen', 'Quà thử', 'Cùng học vui', `HocVien${Date.now()}`, 1, 1)}
+      className="fixed top-4 right-4 z-[999] rounded-lg bg-sky-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-sky-500"
+    >
+      🎁 Gửi quà thử
+    </button>
+  );
+
   // Standalone OBS mode: renders 100% clean full-screen stage for OBS browser source
   if (isStandaloneObs) {
     return (
       <div className="w-screen h-screen bg-[#070302] flex items-center justify-center p-0 m-0 overflow-hidden">
+        {demoButton}
         {/* Stage is laid out at 430px wide; zoom it to fill the 1080x1920 capture */}
         <div className="w-[430px] flex flex-col justify-center" style={{ zoom: stageZoom }}>
           <ChanhDienStage
@@ -714,6 +726,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#070302] text-stone-100 flex flex-col font-sans">
+      {demoButton}
       <HeaderNav
         viewMode={config.viewMode}
         onChangeViewMode={(mode) => setConfig((prev) => ({ ...prev, viewMode: mode }))}

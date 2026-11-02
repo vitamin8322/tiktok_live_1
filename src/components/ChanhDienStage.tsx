@@ -204,7 +204,7 @@ export const ChanhDienStage: React.FC<ChanhDienStageProps> = ({
   };
 
   // Exact background path uploaded by the user
-  const templeBgUrl = '/assets/bg/chanh-dien-2-hd.webp'; // AI-upscaled (Real-ESRGAN x4) from chanh-dien-2.webp
+  const templeBgUrl = '/assets/bg/classroom.svg'; // AI-upscaled (Real-ESRGAN x4) from chanh-dien-2.webp
 
   return (
     <div
@@ -218,17 +218,17 @@ export const ChanhDienStage: React.FC<ChanhDienStageProps> = ({
       <div ref={bgRef} className="absolute inset-0 z-0">
         <img
           src={templeBgUrl}
-          alt="Chánh Điện Kim Phật"
+          alt="Lớp học với bảng xanh và bàn giáo viên"
           className="w-full h-full object-cover object-center"
-          style={{ filter: 'brightness(0.8) saturate(0.95)' }}
+          style={{ filter: 'brightness(0.95) saturate(1)' }}
         />
         {/* 4K copy (the full AI upscale) shown only while the camera is close on a gift giver, so the hall stays sharp */}
         <img
-          src="/assets/bg/chanh-dien-2-4k.webp"
+          src="/assets/bg/classroom.svg"
           alt=""
           decoding="async"
           className="absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-700"
-          style={{ filter: 'brightness(0.8) saturate(0.95)', opacity: spotKey ? 1 : 0 }}
+          style={{ filter: 'brightness(0.95) saturate(1)', opacity: spotKey ? 1 : 0 }}
         />
         {/* Slow soft halo behind the Buddha's head */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[20%] w-[38%] aspect-square rounded-full bg-radial from-amber-200/25 via-amber-400/10 to-transparent mix-blend-screen animate-pulse-gold pointer-events-none" />
@@ -251,7 +251,7 @@ export const ChanhDienStage: React.FC<ChanhDienStageProps> = ({
       {/* Notice scrolling in a thin strip under the like bar (the channel owner's wording) */}
       <div className="absolute top-[20.3%] left-[8%] right-[8%] z-30 overflow-hidden pointer-events-none rounded-full bg-black/35 border border-[#c9973f]/40">
         <div className="w-max whitespace-nowrap py-0.5 text-[9px] text-[#f3d08a]/90 font-temple animate-notice-scroll">
-          Xin lưu ý, đây là không gian thư giãn mang tinh thần an nhiên; quà tặng chỉ để nhận lời chúc, không phải tiền cúng dường hay để cầu may.
+          Chào mừng đến lớp học vui vẻ! Cùng trò chuyện và học hỏi mỗi ngày.
         </div>
       </div>
 
@@ -264,7 +264,7 @@ export const ChanhDienStage: React.FC<ChanhDienStageProps> = ({
           {config.channelName}
         </h1>
         <div className="mt-0.5 text-[13px] font-semibold text-[#f3d08a] font-temple tracking-wide drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
-          Nam Mô A Di Đà Phật
+          Cùng nhau học điều hay mỗi ngày
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SPRITE = '/assets/devotees/phattu.png';
+const SPRITE = '/assets/devotees/student.svg';
 
 export const hash = (s: string) => {
   let h = 0;

@@ -94,6 +94,42 @@ export async function loadDevoteeAssets(): Promise<DevoteeAssets> {
     .catch(() => null);
   const model: THREE.Group = own ?? groups['khan.fbx'];
   model.animations = [];
+  // The supplied character has trousers under the long robe. Remove its lower
+  // robe triangles, retaining the rig and upper garment as a school shirt.
+  if (own) model.traverse((o) => {
+    const mesh = o as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh || !Array.isArray(mesh.material)) return;
+    const materials = mesh.material as THREE.Material[];
+    const robe = materials.findIndex((m) => m.name === 'Robe_LamGray');
+    const stitch = materials.findIndex((m) => m.name === 'Robe_Stitch');
+    if (robe < 0 || stitch < 0) return;
+    const geometry = mesh.geometry.clone();
+    const position = geometry.getAttribute('position');
+    const oldIndex = geometry.getIndex();
+    const indices: number[] = [];
+    const groups = [...geometry.groups];
+    geometry.clearGroups();
+    groups.forEach((group, groupIndex) => {
+      const start = indices.length;
+      for (let i = group.start; i < group.start + group.count; i += 3) {
+        const tri = [0, 1, 2].map((offset) => oldIndex ? oldIndex.getX(i + offset) : i + offset);
+        // The first three groups are the body of the robe; the later groups
+        // are sleeves and cuffs and must remain intact.
+        if (groupIndex < 3 && tri.some((index) => position.getY(index) < 0.88)) continue;
+        indices.push(...tri);
+      }
+      geometry.addGroup(start, indices.length - start, group.materialIndex);
+    });
+    geometry.setIndex(indices);
+    mesh.geometry = geometry;
+    mesh.material = materials.map((material) => {
+      const copy = material.clone() as THREE.MeshStandardMaterial;
+      if (copy.name === 'Robe_LamGray') copy.color.set('#b5d8ee');
+      if (copy.name === 'Robe_Stitch') copy.color.set('#6c9fbd');
+      if (copy.name === 'Trousers') copy.color.set('#253d64');
+      return copy;
+    });
+  });
   let clips: Clips = { walk, kneel, kneelDown, incense };
   if (own && !usesMixamoRig(own)) {
     // Own skeleton (Hips/Spine/Chest/...): rebuild every Mixamo clip for it
@@ -146,21 +182,12 @@ const blobTexture = (() => {
 
 // A lit incense stick (thin stick with a glowing tip) held in the right hand while lighting incense
 // Three thick incense sticks held in a bundle, tall enough to read from the high camera, with glowing tips
-function makeIncenseStick() {
+function makeClassroomBook() {
   const g = new THREE.Group();
-  const stickMat = new THREE.MeshBasicMaterial({ color: 0xa8321a });
-  const tipMat = new THREE.MeshBasicMaterial({ color: 0xffb347 });
-  for (const dx of [-0.018, 0, 0.018]) {
-    // Held a quarter of the way up: from just below the hand to well above the head
-    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.8, 6), stickMat);
-    stick.position.set(dx, 0.3, 0);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), tipMat);
-    tip.position.set(dx, 0.71, 0);
-    g.add(stick, tip);
-  }
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.35, depthWrite: false }));
-  glow.position.y = 0.71;
-  g.add(glow);
+  const cover = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.21, 0.035), new THREE.MeshStandardMaterial({ color: 0x4a82bd }));
+  const pages = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.19, 0.038), new THREE.MeshStandardMaterial({ color: 0xfff6d9 }));
+  pages.position.x = 0.008;
+  g.add(cover, pages);
   return g;
 }
 
@@ -247,7 +274,7 @@ class Actor {
   private setStick(on: boolean) {
     if (!this.hand) return;
     if (on && !this.stick) {
-      this.stick = makeIncenseStick();
+      this.stick = makeClassroomBook();
       // Bone space is in the model's original units (cm for Mixamo), so undo the body scale
       this.stick.scale.setScalar(1 / this.root.children[0].scale.x);
       this.hand.add(this.stick);

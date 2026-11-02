@@ -7,13 +7,13 @@ export const CompactBangCongDuc: React.FC<{ topDonors: LeaderboardEntry[] }> = (
   <>
     <div className="absolute left-[72%] top-[46%] w-[22%] h-[3.6%] z-140 pointer-events-none select-none rounded-md border-2 border-[#c9973f] bg-linear-to-b from-[#24130a] to-[#120904] flex flex-col items-center justify-center text-[7px] leading-tight font-semibold font-temple text-[#f3d08a] text-center">
       <span>
-        Gõ <strong className="text-white">"adidaphat"</strong>
+        Gõ <strong className="text-white">"lop hoc"</strong>
       </span>
-      <span className="text-[6px]">để vào dâng hương</span>
+      <span className="text-[6px]">để tham gia lớp</span>
     </div>
     <div className="absolute left-[72%] top-[50.2%] w-[22%] z-140 pointer-events-none select-none rounded-md border-2 border-[#c9973f] bg-linear-to-b from-[#24130a]/95 to-[#120904]/95 shadow-[0_0_12px_rgba(201,151,63,0.45)] px-1 py-0.5">
       <div className="text-center text-[7px] font-black tracking-wide text-[#f3d08a] font-temple leading-tight border-b border-[#c9973f]/60 pb-0.5">
-        ❀ TOP THÀNH TÂM
+        ★ TOP TÍCH CỰC
       </div>
       {topDonors.length === 0 ? (
         <div className="py-1.5 text-center text-[7px] text-[#e8c98e] font-temple">Comment để lên bảng</div>

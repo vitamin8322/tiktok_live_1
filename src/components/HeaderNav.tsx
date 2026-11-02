@@ -14,9 +14,9 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     <header className="flex items-center justify-between gap-8 px-6 py-3.5 border-b border-stone-800 bg-[#120806]/95 backdrop-blur-md sticky top-0 z-50">
       {/* Zone 1: Brand Wordmark (Single text element, no badges) */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className="text-xl">☸</span>
+        <span className="text-xl">📚</span>
         <span className="text-lg font-bold tracking-tight text-amber-200 font-temple whitespace-nowrap">
-          Đi Chùa Online
+          Lớp Học Online
         </span>
       </div>
 

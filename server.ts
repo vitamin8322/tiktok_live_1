@@ -61,6 +61,10 @@ app.get('/api/tiktok/events', (req, res) => {
   // Send current status right away
   res.write(`event: status\ndata: ${JSON.stringify(liveStats)}\n\n`);
   if (lastRateControl) res.write(`event: control\ndata: ${JSON.stringify(lastRateControl)}\n\n`);
+  if (lastQuizVoiceControl) res.write(`event: control\ndata: ${JSON.stringify(lastQuizVoiceControl)}\n\n`);
+  if (lastQuizVolumeControl) res.write(`event: control\ndata: ${JSON.stringify(lastQuizVolumeControl)}\n\n`);
+  if (lastClassroomEffectsControl) res.write(`event: control\ndata: ${JSON.stringify(lastClassroomEffectsControl)}\n\n`);
+  if (lastClassroomEffectsVolumeControl) res.write(`event: control\ndata: ${JSON.stringify(lastClassroomEffectsVolumeControl)}\n\n`);
 
   if (lastNameControl) res.write(`event: control\ndata: ${JSON.stringify(lastNameControl)}\n\n`);
   sseClients.push(res);
@@ -275,7 +279,7 @@ app.post('/api/tiktok/connect', async (req, res) => {
 });
 
 // Streamer commands from the dashboard, relayed to the live stage page(s) that make the sound
-const CONTROL_ACTIONS = ['speak', 'shareReminder', 'bell', 'setRate', 'setName'];
+const CONTROL_ACTIONS = ['speak', 'shareReminder', 'bell', 'setRate', 'setName', 'setQuizVoice', 'setQuizVolume', 'setClassroomEffects', 'setClassroomEffectsVolume', 'previewClassroomCue'];
 
 // The channel name (title + what the voice says) survives restarts in settings.json next to this file
 const SETTINGS_FILE = path.join(process.cwd(), 'settings.json');
@@ -288,6 +292,10 @@ try {
 }
 // Last voice speed from the dashboard, replayed to stage pages that (re)load later
 let lastRateControl: { action: string; text: string } | null = null;
+let lastQuizVoiceControl: { action: string; text: string } | null = null;
+let lastQuizVolumeControl: { action: string; text: string } | null = null;
+let lastClassroomEffectsControl: { action: string; text: string } | null = null;
+let lastClassroomEffectsVolumeControl: { action: string; text: string } | null = null;
 app.post('/api/control', (req, res) => {
   const { action, text } = req.body || {};
   if (!CONTROL_ACTIONS.includes(action)) {
@@ -297,6 +305,27 @@ app.post('/api/control', (req, res) => {
     return res.status(400).json({ success: false, error: 'Chưa nhập nội dung cần đọc' });
   }
   const payload = { action, text: typeof text === 'string' ? text.trim().slice(0, 1000) : undefined };
+  if (action === 'setQuizVoice') {
+    if (payload.text !== 'on' && payload.text !== 'off') return res.status(400).json({ success: false, error: 'Trạng thái giọng đọc không hợp lệ' });
+    lastQuizVoiceControl = { action, text: payload.text };
+  }
+  if (action === 'setQuizVolume') {
+    const volume = Number(payload.text);
+    if (!payload.text || !Number.isFinite(volume) || volume < 0 || volume > 1) return res.status(400).json({ success: false, error: 'Âm lượng không hợp lệ' });
+    lastQuizVolumeControl = { action, text: payload.text };
+  }
+  if (action === 'setClassroomEffects') {
+    if (payload.text !== 'on' && payload.text !== 'off') return res.status(400).json({ success: false, error: 'Trạng thái hiệu ứng không hợp lệ' });
+    lastClassroomEffectsControl = { action, text: payload.text };
+  }
+  if (action === 'setClassroomEffectsVolume') {
+    const volume = Number(payload.text);
+    if (!payload.text || !Number.isFinite(volume) || volume < 0 || volume > 1) return res.status(400).json({ success: false, error: 'Âm lượng không hợp lệ' });
+    lastClassroomEffectsVolumeControl = { action, text: payload.text };
+  }
+  if (action === 'previewClassroomCue' && !['question', 'tick', 'countdown', 'answer', 'gift', 'celebrate'].includes(payload.text || '')) {
+    return res.status(400).json({ success: false, error: 'Âm thanh không hợp lệ' });
+  }
   if (action === 'setRate' && payload.text) lastRateControl = { action, text: payload.text };
   if (action === 'setName') {
     // Plain name only: no control characters, at most 40 characters
@@ -362,11 +391,12 @@ const TTS_PITCH = '-4%'; // slightly deeper, calmer
 // The text goes inside SSML, so names with & < > must be escaped
 const escapeXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-async function edgeTts(text: string, rate: number): Promise<Buffer> {
+async function edgeTts(text: string, rate: number, voice: 'default' | 'classroom' | 'english' = 'default'): Promise<Buffer> {
   const tts = new MsEdgeTTS();
   try {
-    await tts.setMetadata(TTS_VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
-    const { audioStream } = tts.toStream(escapeXml(text), { rate: `${Math.round((rate - 1) * 100)}%`, pitch: TTS_PITCH });
+    const voiceName = voice === 'english' ? 'en-US-JennyNeural' : voice === 'classroom' ? 'vi-VN-HoaiMyNeural' : TTS_VOICE;
+    await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+    const { audioStream } = tts.toStream(escapeXml(text), { rate: `${Math.round((rate - 1) * 100)}%`, pitch: voice === 'default' ? TTS_PITCH : '+0%' });
     const chunks: Buffer[] = [];
     const read = (async () => {
       for await (const c of audioStream) chunks.push(c as Buffer);
@@ -381,10 +411,10 @@ async function edgeTts(text: string, rate: number): Promise<Buffer> {
 }
 
 // Fallback: Google Translate TTS caps each request near 200 chars, so fetch in chunks and join the MP3s
-async function googleTts(text: string): Promise<Buffer> {
+async function googleTts(text: string, language: 'vi' | 'en' = 'vi'): Promise<Buffer> {
   const parts: Buffer[] = [];
   for (const chunk of splitTtsText(text)) {
-    const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=vi&client=tw-ob&q=${encodeURIComponent(chunk)}`;
+    const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${language}&client=tw-ob&q=${encodeURIComponent(chunk)}`;
     const response = await fetch(googleTtsUrl, {
       headers: {
         'User-Agent':
@@ -408,14 +438,15 @@ app.get('/api/tts', async (req, res) => {
       return res.status(400).send('Missing text parameter');
     }
     const rate = Math.min(1.5, Math.max(0.5, Number(req.query.rate) || 1));
-    const cacheKey = `${rate}|${text}`;
+    const voice = req.query.voice === 'english' ? 'english' : req.query.voice === 'classroom' ? 'classroom' : 'default';
+    const cacheKey = `${voice}|${rate}|${text}`;
     let audio = ttsCache.get(cacheKey);
     if (!audio) {
       try {
-        audio = await edgeTts(text, rate);
+        audio = await edgeTts(text, rate, voice);
       } catch (err) {
         console.warn('Edge TTS failed, falling back to Google:', err instanceof Error ? err.message : err);
-        audio = await googleTts(text);
+        audio = await googleTts(text, voice === 'english' ? 'en' : 'vi');
       }
       ttsCache.set(cacheKey, audio);
       if (ttsCache.size > 200) ttsCache.delete(ttsCache.keys().next().value!);

@@ -55,6 +55,9 @@ export interface StreamConfig {
   autoTts: boolean;
   voiceGender: 'female' | 'male'; // Giọng Nữ Phật Giáo (Default) vs Giọng Nam
   ttsSpeed: number;
+  ttsVolume: number;
+  classroomEffectsEnabled: boolean;
+  classroomEffectsVolume: number;
   ttsPitch: number;
   bellSoundEnabled: boolean;
   gongSoundEnabled: boolean;
@@ -73,6 +76,7 @@ export interface CommentEvent {
   id: string;
   username: string;
   displayName: string;
+  avatarUrl?: string;
   comment: string;
   timestamp: number;
   category?: 'peace' | 'wealth' | 'family' | 'health' | 'love' | 'general';

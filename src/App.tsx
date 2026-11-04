@@ -12,15 +12,11 @@ import {
   TikTokLiveStatus,
   OfferRequest,
 } from './types/temple';
-import { soundEngine, formatUsernameForTts } from './services/soundEngine';
+import { classroomSounds, type ClassroomCue } from './services/classroomSounds';
 import { maskBanned } from './services/bannedWords';
-import { detectWish, blessingFor, shouldAnswer } from './services/wishResponder';
 import { pickSeat } from './services/seating';
 import { LIKES_PER_RAIN } from './services/likeRain';
 
-const SHARE_REMINDER_MS = 5 * 60 * 1000;
-const IDLE_BLESSING_MS = 90 * 1000; // voice quiet this long -> blessing + share ask
-const WELCOME_CHECK_MS = 6 * 1000;
 const MAX_WAITING_JOINERS = 30;
 const SEAT_AFTER_JOIN_MS = 10 * 1000;
 const DEFAULT_CHANNEL_NAME = 'Lớp Học Vui Vẻ'; // until the owner saves their own in the dashboard
@@ -48,19 +44,23 @@ const ROBE_COLORS = [
 
 
 export default function App() {
+  const [previewAudio, setPreviewAudio] = useState(false);
   const [config, setConfig] = useState<StreamConfig>({
     channelName: DEFAULT_CHANNEL_NAME,
     liveTitle: 'LỚP HỌC VUI VẺ',
     subTitle: 'Gõ "lop hoc" để tham gia lớp',
     isConnected: true,
-    autoTts: IS_STAGE_PAGE,
+    autoTts: true,
     voiceGender: 'female',
-    ttsSpeed: 0.85,
+    ttsSpeed: 1,
+    ttsVolume: 1,
+    classroomEffectsEnabled: true,
+    classroomEffectsVolume: 0.45,
     ttsPitch: 1.08,
     bellSoundEnabled: true,
     gongSoundEnabled: true,
     chantAmbientEnabled: false,
-    bgmEnabled: IS_STAGE_PAGE,
+    bgmEnabled: false,
     bgmVolume: 0.18,
     buddhistMusicTrack: 'chill',
     isDharmaLectureActive: false,
@@ -130,14 +130,6 @@ export default function App() {
   // A gift of SPOTLIGHT_COINS+ coins in one go (combos added up within 15 s) gets the close-up camera
   const [spotlightRequests, setSpotlightRequests] = useState<OfferRequest[]>([]);
   const giftCoinsRef = useRef(new Map<string, { coins: number; since: number; done: boolean }>());
-  const pendingThanksRef = useRef(new Map<string, { username: string; giftName: string; diamonds: number }>());
-  const readPendingThanks = (username: string) => {
-    const key = username.toLowerCase();
-    const t = pendingThanksRef.current.get(key);
-    if (!t) return;
-    pendingThanksRef.current.delete(key);
-    soundEngine.readGiftAcknowledgment(t.username, t.giftName, t.diamonds);
-  };
   const requestSpotlightIfBig = (username: string, coins: number, avatarUrl = '') => {
     const key = username.toLowerCase();
     const now = Date.now();
@@ -150,7 +142,6 @@ export default function App() {
     setSpotlightRequests((p) =>
       [...p, { id: `spot-${now}-${username}`, username, displayName: maskBanned(username), avatarUrl }].slice(-10)
     );
-    soundEngine.playTempleBell(0.9);
   };
   const requestOffer = (username: string, avatarUrl = '') =>
     setOfferRequests((prev) =>
@@ -208,19 +199,17 @@ export default function App() {
   }, []);
 
 
-  // Real Buddhist music background lifecycle
   useEffect(() => {
-    if (config.bgmEnabled) {
-      soundEngine.startBuddhistMusic(config.buddhistMusicTrack, config.bgmVolume);
-    } else {
-      soundEngine.stopBuddhistMusic();
-    }
-  }, [config.bgmEnabled, config.buddhistMusicTrack, config.bgmVolume]);
-
-
+    classroomSounds.configure(config.classroomEffectsEnabled && (IS_STAGE_PAGE || previewAudio), config.classroomEffectsVolume);
+  }, [config.classroomEffectsEnabled, config.classroomEffectsVolume, previewAudio]);
   useEffect(() => {
-    soundEngine.setSpeechRate(config.ttsSpeed);
-  }, [config.ttsSpeed]);
+    if (!IS_STAGE_PAGE) return;
+    classroomSounds.unlock();
+    const unlock = () => classroomSounds.unlock();
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => { window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); };
+  }, []);
 
   // Smooth decay of aura
   useEffect(() => {
@@ -314,26 +303,16 @@ export default function App() {
         );
       }, 4500);
 
-      // Lotus chime sound effect
-      soundEngine.playLotusBloom(0.7);
-      if (nextCombo % 4 === 0 || giftType === 'dang_hoa_sen') {
-        soundEngine.playTempleBell(0.85);
-      }
+      // A short classroom cue accompanies a gift.
+      if (IS_STAGE_PAGE || previewAudio) classroomSounds.play('gift');
 
-      // Every gift is thanked by name (soundEngine dedupes combos and skips small gifts when busy)
-      // The name and blessing are read when the close-up starts (onSpotlightStart); if it never starts
-      // (no 3D, or it waits too long in line) they are read anyway after 20 s
-      if (config.autoTts && !pendingThanksRef.current.has(cleanUser.toLowerCase())) {
-        const key = cleanUser.toLowerCase();
-        pendingThanksRef.current.set(key, { username: cleanUser, giftName, diamonds: totalDiamonds });
-        setTimeout(() => readPendingThanks(cleanUser), 20000);
-      }
     },
-    [currentGift, config.autoTts]
+    [currentGift, config.autoTts, previewAudio]
   );
 
   // Add Comment & Handle "adidaphat" Entry
-  const handleAddComment = (username: string, commentText: string, avatarUrl = '') => {
+  const commentSequence = useRef(0);
+  const handleAddComment = (username: string, commentText: string, avatarUrl = '', displayName = username) => {
     const cleanUser = username.trim() || 'Học viên';
     noteInteractor(cleanUser);
     const now = Date.now();
@@ -347,14 +326,15 @@ export default function App() {
       .match(/adidaphat|lophoc/) !== null;
 
     const newComment: CommentEvent = {
-      id: `c-${now}`,
+      id: `c-${now}-${commentSequence.current++}`,
       username: cleanUser,
-      displayName: maskBanned(cleanUser),
+      displayName: maskBanned(displayName.trim() || cleanUser),
+      avatarUrl,
       comment: maskBanned(commentText),
       timestamp: now,
     };
 
-    setComments((prev) => [...prev.slice(-30), newComment]);
+    setComments((prev) => [...prev.slice(-1999), newComment]);
     addMerit(cleanUser, 1, avatarUrl); // one comment = one point
 
     addOrUpdateDevotee(
@@ -363,11 +343,6 @@ export default function App() {
       isAdidaphat
     );
 
-    // Answer a prayer in the comment with a blessing for that topic (never during a lecture, rate-limited)
-    const wish = detectWish(commentText);
-    if (wish && config.autoTts && !soundEngine.isDharmaLecturePlaying() && shouldAnswer(cleanUser)) {
-      soundEngine.speakPreferredBuddhistVoice(blessingFor(wish, formatUsernameForTts(cleanUser), config.channelName));
-    }
 
     setTimeout(() => {
       setDevotees((prev) =>
@@ -381,39 +356,13 @@ export default function App() {
 
     if (isAdidaphat) {
       requestOffer(cleanUser, avatarUrl);
-      soundEngine.playMuoGong(1.2); // no voice for adidaphat offerers: only gift givers are announced
     }
   };
 
   const handleAddDevotee = (username: string) => addOrUpdateDevotee(username, () => ({}));
 
-  const handleFollow = (username: string) => {
-    if (config.autoTts) soundEngine.readFollowThanks(username);
-  };
+  const handleFollow = (_username: string) => {};
 
-  // Share reminder thanking up to 3 people who commented or gave gifts in the last 5 minutes, newest first
-  const remindShare = () => {
-    const since = Date.now() - SHARE_REMINDER_MS;
-    const names = [...recentInteractorsRef.current]
-      .filter(([, t]) => t > since)
-      .map(([name]) => name)
-      .reverse()
-      .slice(0, 3);
-    soundEngine.readShareReminder(names);
-  };
-
-  useEffect(() => {
-    if (!config.autoTts) return;
-    const interval = setInterval(() => remindShare(), SHARE_REMINDER_MS);
-    // Quiet live (no one joining, nothing to answer): bless the viewers and ask them to share
-    const idle = setInterval(() => {
-      if (soundEngine.quietForMs() > IDLE_BLESSING_MS) soundEngine.readIdleBlessing();
-    }, 15000);
-    return () => {
-      clearInterval(interval);
-      clearInterval(idle);
-    };
-  }, [config.autoTts]);
 
   // Every newcomer is greeted, once per session: names wait in a list and every few seconds up to 6 are
   // greeted (3 names per sentence), oldest first, whenever the voice isn't backed up. During a lecture they wait.
@@ -426,16 +375,6 @@ export default function App() {
     // shortcut: in a flood only the newest MAX_WAITING_JOINERS wait; raise it if big rooms still miss people
     newJoinersRef.current = [...newJoinersRef.current, name].slice(-MAX_WAITING_JOINERS);
   };
-  useEffect(() => {
-    if (!config.autoTts) return;
-    const interval = setInterval(() => {
-      if (!newJoinersRef.current.length || soundEngine.isDharmaLecturePlaying() || soundEngine.queuedSpeech() >= 2) return;
-      const names = newJoinersRef.current.splice(0, 6);
-      names.forEach((n) => greetedRef.current.add(n));
-      for (let i = 0; i < names.length; i += 3) soundEngine.readWelcomeJoiners(names.slice(i, i + 3));
-    }, WELCOME_CHECK_MS);
-    return () => clearInterval(interval);
-  }, [config.autoTts]);
 
   // Dashboard buttons drive the live stage page, which is the one that makes sound
   const sendControl = (action: string, text?: string) => {
@@ -451,12 +390,13 @@ export default function App() {
     // The channel name applies on every page (dashboard field and the live stage's title and voice)
     if (action === 'setName' && text) {
       setConfig((prev) => ({ ...prev, channelName: text }));
-      soundEngine.setChannelName(text);
     }
-    if (!isStandaloneObs) return;
-    if (action === 'speak' && text) soundEngine.speakNow(text);
-    if (action === 'shareReminder') remindShare();
-    if (action === 'bell') handleRingBell();
+    if (action === 'setQuizVoice') setConfig((prev) => ({ ...prev, autoTts: text === 'on' }));
+    if (action === 'setQuizVolume') setConfig((prev) => ({ ...prev, ttsVolume: Math.max(0, Math.min(1, Number(text) || 0)) }));
+    if (action === 'setClassroomEffects') setConfig((prev) => ({ ...prev, classroomEffectsEnabled: text === 'on' }));
+    if (action === 'setClassroomEffectsVolume') setConfig((prev) => ({ ...prev, classroomEffectsVolume: Math.max(0, Math.min(1, Number(text) || 0)) }));
+    if (action === 'previewClassroomCue' && (IS_STAGE_PAGE || previewAudio) && text && ['question', 'tick', 'countdown', 'answer', 'gift', 'celebrate'].includes(text)) classroomSounds.play(text as ClassroomCue);
+    if (action === 'bell' && (IS_STAGE_PAGE || previewAudio)) handleRingBell();
     if (action === 'setRate' && Number(text) > 0) {
       setConfig((prev) => ({ ...prev, ttsSpeed: Math.min(1.15, Math.max(0.6, Number(text))) }));
     }
@@ -468,12 +408,12 @@ export default function App() {
   };
 
   const handleRingBell = () => {
-    soundEngine.playTempleBell(0.9);
+    classroomSounds.play('question');
     setAuraIntensity(0.7);
   };
 
   const handlePlayGong = () => {
-    soundEngine.playMuoGong(0.85);
+    classroomSounds.play('countdown');
   };
 
 
@@ -508,8 +448,8 @@ export default function App() {
       eventSource.addEventListener('chat', (e) => {
         try {
           const data = JSON.parse(e.data);
-          const name = data.nickname || data.username || 'Học viên';
-          handlersRef.current.handleAddComment(name, data.comment || '', data.avatar || '');
+          const name = data.username || data.nickname || 'Học viên';
+          handlersRef.current.handleAddComment(name, data.comment || '', data.avatar || '', data.nickname || name);
         } catch (err) {
           console.error('SSE chat parse error', err);
         }
@@ -693,6 +633,7 @@ export default function App() {
       🎁 Gửi quà thử
     </button>
   );
+  const stageConfig = { ...config, autoTts: config.autoTts && (IS_STAGE_PAGE || previewAudio) };
 
   // Standalone OBS mode: renders 100% clean full-screen stage for OBS browser source
   if (isStandaloneObs) {
@@ -703,11 +644,12 @@ export default function App() {
         <div className="w-[430px] flex flex-col justify-center" style={{ zoom: stageZoom }}>
           <ClassroomQuizStage
             comments={comments}
-            onSpotlightStart={readPendingThanks}
+            demo={IS_DEMO}
+            onDemoAnswer={(choice: string) => handleAddComment('HocVienTest', choice)}
             spotlightRequests={spotlightRequests}
             likeProgress={likeProgress}
             rainUntil={rainUntil}
-            config={config}
+            config={stageConfig}
             devotees={devotees}
             offerers={offerers}
             offerRequests={offerRequests}
@@ -734,6 +676,22 @@ export default function App() {
       />
 
       <main className="flex-1 p-2 md:p-6 max-w-7xl mx-auto w-full flex flex-col">
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-sky-800/70 bg-sky-950/40 px-4 py-3 text-sm">
+          <button
+            type="button"
+            onClick={() => {
+              if (!previewAudio) {
+                classroomSounds.configure(config.classroomEffectsEnabled, config.classroomEffectsVolume);
+                classroomSounds.unlock();
+              }
+              setPreviewAudio((enabled) => !enabled);
+            }}
+            className={`rounded-lg px-4 py-2 font-bold transition-colors ${previewAudio ? 'bg-sky-200 text-sky-950' : 'bg-sky-600 text-white hover:bg-sky-500'}`}
+          >
+            {previewAudio ? '🔊 Đang bật tiếng xem trước' : '🔇 Bật tiếng xem trước'}
+          </button>
+          <span className="text-xs text-sky-100">{previewAudio ? 'Giọng đọc sẽ phát từ thông báo tiếp theo. Tắt khi OBS cũng đang phát để tránh tiếng kép.' : 'Bật để nghe giọng đọc và hiệu ứng ngay trên trình duyệt này.'}</span>
+        </div>
         {config.viewMode === 'dual' ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 items-start">
             {/* Left: 9:16 Vertical TikTok Live Stage */}
@@ -741,11 +699,12 @@ export default function App() {
               <div className="w-full max-w-[430px]">
                 <ClassroomQuizStage
                   comments={comments}
-                  onSpotlightStart={readPendingThanks}
+                  demo={IS_DEMO}
+                  onDemoAnswer={(choice: string) => handleAddComment('HocVienTest', choice)}
                   spotlightRequests={spotlightRequests}
                   likeProgress={likeProgress}
                   rainUntil={rainUntil}
-                  config={config}
+                  config={stageConfig}
                   devotees={devotees}
             offerers={offerers}
             offerRequests={offerRequests}
@@ -764,7 +723,7 @@ export default function App() {
             {/* Right: Streamer Deck */}
             <div className="lg:col-span-7 h-[780px]">
               <StreamerDeck
-                config={config}
+                config={stageConfig}
                 onSaveChannelName={(name) => sendControl('setName', name)}
                 onUpdateConfig={(updates) => setConfig((prev) => ({ ...prev, ...updates }))}
                 tikTokStatus={tikTokStatus}
@@ -778,7 +737,8 @@ export default function App() {
             <div className="w-full max-w-[430px]">
               <ClassroomQuizStage
                 comments={comments}
-                onSpotlightStart={readPendingThanks}
+                demo={IS_DEMO}
+                onDemoAnswer={(choice: string) => handleAddComment('HocVienTest', choice)}
                 spotlightRequests={spotlightRequests}
                 likeProgress={likeProgress}
                 rainUntil={rainUntil}
